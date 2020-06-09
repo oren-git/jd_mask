@@ -4,19 +4,24 @@ import time
 from jdlogger import logger
 from timer import Timer
 import requests
-from util import parse_json, get_session, get_sku_title,send_wechat
+from util import parse_json, get_session, get_sku_title, send_wechat
 from config import global_config
+
 
 class Jd_Mask_Spider(object):
     def __init__(self):
         # 初始化信息
         self.session = get_session()
         self.sku_id = global_config.getRaw('config', 'sku_id')
+        if not self.sku_id:
+            print('请设置sku_id')
+            exit(1)
         self.seckill_init_info = dict()
         self.seckill_url = dict()
         self.seckill_order_data = dict()
         self.timers = Timer()
         self.default_user_agent = global_config.getRaw('config', 'DEFAULT_USER_AGENT')
+        self.num = 1
 
     def login(self):
         for flag in range(1, 3):
@@ -58,7 +63,7 @@ class Jd_Mask_Spider(object):
         resp = self.session.get(url=url, params=payload, headers=headers)
         resp_json = parse_json(resp.text)
         reserve_url = resp_json.get('url')
-        self.timers.start()
+        # self.timers.start()
         while True:
             try:
                 self.session.get(url='https:' + reserve_url)
@@ -115,9 +120,7 @@ class Jd_Mask_Spider(object):
                 # https://divide.jd.com/user_routing?skuId=8654289&sn=c3f4ececd8461f0e4d7267e96a91e0e0&from=pc
                 router_url = 'https:' + resp_json.get('url')
                 # https://marathon.jd.com/captcha.html?skuId=8654289&sn=c3f4ececd8461f0e4d7267e96a91e0e0&from=pc
-                seckill_url = router_url.replace(
-                    'divide', 'marathon').replace(
-                    'user_routing', 'captcha.html')
+                seckill_url = router_url.replace('divide', 'marathon').replace('user_routing', 'captcha.html')
                 logger.info("抢购链接获取成功: %s", seckill_url)
                 return seckill_url
             else:
@@ -128,6 +131,7 @@ class Jd_Mask_Spider(object):
         """访问商品的抢购链接（用于设置cookie等"""
         logger.info('用户:{}'.format(self.get_username()))
         logger.info('商品名称:{}'.format(get_sku_title()))
+        self._get_seckill_init_info()
         self.timers.start()
         self.seckill_url[self.sku_id] = self.get_seckill_url()
         logger.info('访问商品的抢购连接...')
@@ -137,8 +141,7 @@ class Jd_Mask_Spider(object):
             'Referer': 'https://item.jd.com/{}.html'.format(self.sku_id),
         }
         self.session.get(
-            url=self.seckill_url.get(
-                self.sku_id),
+            url=self.seckill_url.get(self.sku_id),
             headers=headers,
             allow_redirects=False)
 
@@ -148,7 +151,7 @@ class Jd_Mask_Spider(object):
         url = 'https://marathon.jd.com/seckill/seckill.action'
         payload = {
             'skuId': self.sku_id,
-            'num': 1,
+            'num': self.num,
             'rid': int(time.time())
         }
         headers = {
@@ -166,15 +169,20 @@ class Jd_Mask_Spider(object):
         url = 'https://marathon.jd.com/seckillnew/orderService/pc/init.action'
         data = {
             'sku': self.sku_id,
-            'num': 1,
+            'num': self.num,
             'isModifyAddress': 'false',
         }
         headers = {
             'User-Agent': self.default_user_agent,
             'Host': 'marathon.jd.com',
         }
-        resp = self.session.post(url=url, data=data, headers=headers)
-        return parse_json(resp.text)
+        while True:
+            resp = self.session.post(url=url, data=data, headers=headers)
+            logger.info(resp.text)
+            if resp.text:
+                json_data = parse_json(resp.text)
+                if json_data:
+                    return json_data
 
     def _get_seckill_order_data(self):
         """生成提交抢购订单所需的请求体参数
@@ -187,9 +195,10 @@ class Jd_Mask_Spider(object):
         default_address = init_info['addressList'][0]  # 默认地址dict
         invoice_info = init_info.get('invoiceInfo', {})  # 默认发票信息dict, 有可能不返回
         token = init_info['token']
+        # 50ad3dac76b6f3ea72aff06932fdb2ef
         data = {
             'skuId': self.sku_id,
-            'num': 1,
+            'num': self.num,
             'addressId': default_address['id'],
             'yuShou': 'true',
             'isModifyAddress': 'false',
@@ -232,20 +241,17 @@ class Jd_Mask_Spider(object):
         payload = {
             'skuId': self.sku_id,
         }
-        self.seckill_order_data[self.sku_id] = self._get_seckill_order_data(
-            )
+        self.seckill_order_data[self.sku_id] = self._get_seckill_order_data()
         logger.info('提交抢购订单...')
         headers = {
             'User-Agent': self.default_user_agent,
             'Host': 'marathon.jd.com',
-            'Referer': 'https://marathon.jd.com/seckill/seckill.action?skuId={0}&num={1}&rid={2}'.format(
-                self.sku_id, 1, int(time.time())),
+            'Referer': 'https://marathon.jd.com/seckill/seckill.action?skuId={0}&num={1}&rid={2}'.format(self.sku_id, self.num, int(time.time())),
         }
         resp = self.session.post(
             url=url,
             params=payload,
-            data=self.seckill_order_data.get(
-                self.sku_id),
+            data=self.seckill_order_data.get(self.sku_id),
             headers=headers)
         resp_json = parse_json(resp.text)
         # 返回信息
@@ -260,8 +266,8 @@ class Jd_Mask_Spider(object):
             total_money = resp_json.get('totalMoney')
             pay_url = 'https:' + resp_json.get('pcUrl')
             logger.info(
-                '抢购成功，订单号:{}, 总价:{}, 电脑端付款链接:{}'.format(order_id,total_money,pay_url)
-                )
+                '抢购成功，订单号:{}, 总价:{}, 电脑端付款链接:{}'.format(order_id, total_money, pay_url)
+            )
             if global_config.getRaw('messenger', 'enable') == 'true':
                 success_message = "抢购成功，订单号:{}, 总价:{}, 电脑端付款链接:{}".format(order_id, total_money, pay_url)
                 send_wechat(success_message)

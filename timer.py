@@ -5,9 +5,12 @@ from jdlogger import logger
 from config import global_config
 
 class Timer(object):
-    def __init__(self, sleep_interval=0.5):
+    def __init__(self, sleep_interval=0.005):
         # '2018-09-28 22:45:50.000'
-        self.buy_time = datetime.strptime(global_config.getRaw('config','buy_time'), "%Y-%m-%d %H:%M:%S.%f")
+        if not global_config.getRaw('config', 'buy_time'):
+            print('请设置时间')
+            exit(1)
+        self.buy_time = datetime.strptime(global_config.getRaw('config', 'buy_time'), "%Y-%m-%d %H:%M:%S.%f")
         self.sleep_interval = sleep_interval
 
     def start(self):
