@@ -2,11 +2,10 @@ import random
 import sys
 import time
 from jdlogger import logger
-from timer import Timer
 import requests
 from util import parse_json, get_session, get_sku_title, send_wechat
 from config import global_config
-
+from datetime import datetime
 
 class Jd_Mask_Spider(object):
     def __init__(self):
@@ -19,7 +18,6 @@ class Jd_Mask_Spider(object):
         self.seckill_init_info = dict()
         self.seckill_url = dict()
         self.seckill_order_data = dict()
-        self.timers = Timer()
         self.default_user_agent = global_config.getRaw('config', 'DEFAULT_USER_AGENT')
         self.num = 1
 
@@ -47,9 +45,8 @@ class Jd_Mask_Spider(object):
                 continue
         sys.exit(1)
 
-    def make_reserve(self):
-        """商品预约"""
-        logger.info('商品名称:{}'.format(get_sku_title()))
+    def get_item_info(self):
+        """获取预售信息"""
         url = 'https://yushou.jd.com/youshouinfo.action?'
         payload = {
             'callback': 'fetchJSON',
@@ -61,16 +58,27 @@ class Jd_Mask_Spider(object):
             'Referer': 'https://item.jd.com/{}.html'.format(self.sku_id),
         }
         resp = self.session.get(url=url, params=payload, headers=headers)
-        resp_json = parse_json(resp.text)
-        reserve_url = resp_json.get('url')
-        # self.timers.start()
+        return parse_json(resp.text)
+    def make_reserve(self):
+        """商品预约"""
+        info = self.get_item_info()
+        logger.info('开抢时间:' + info.get('qiangStime'))
+        reserve_url = info.get('url')
         while True:
             try:
-                self.session.get(url='https:' + reserve_url)
-                logger.info('预约成功，已获得抢购资格 / 您已成功预约过了，无需重复预约')
-                if global_config.getRaw('messenger', 'enable') == 'true':
-                    success_message = "预约成功，已获得抢购资格 / 您已成功预约过了，无需重复预约"
-                    send_wechat(success_message)
+                resp = self.session.get(url='https:' + reserve_url)
+                if resp.text.find('您已成功预约过了'):
+                    message = '您已成功预约过了，无需重复预约'
+                elif resp.text.find('预约成功'):
+                    message = '预约成功，已获得抢购资格'
+                else:
+                    message = ''
+                    logger.info(resp.text)
+                    logger.info('预约失败')
+                if message:
+                    logger.info(message)
+                    if global_config.getRaw('messenger', 'enable') == 'true':
+                        send_wechat(message)
                 break
             except Exception as e:
                 logger.error('预约失败正在重试...')
@@ -124,15 +132,25 @@ class Jd_Mask_Spider(object):
                 logger.info("抢购链接获取成功: %s", seckill_url)
                 return seckill_url
             else:
-                logger.info("抢购链接获取失败，%s不是抢购商品或抢购页面暂未刷新，1秒后重试")
-                time.sleep(1)
+                logger.info("抢购链接获取失败，%s不是抢购商品或抢购页面暂未刷新，0.5秒后重试")
+                time.sleep(0.5)
 
     def request_seckill_url(self):
         """访问商品的抢购链接（用于设置cookie等"""
         logger.info('用户:{}'.format(self.get_username()))
         logger.info('商品名称:{}'.format(get_sku_title()))
+        info = self.get_item_info()
+        logger.info('开抢时间:' + info.get('qiangStime'))
+        buy_time = datetime.strptime(info.get('qiangStime'), "%Y-%m-%d %H:%M:%S")
+
+        diff = buy_time.timestamp() - time.time() - 180
+        logger.info('init时间:' + datetime.fromtimestamp(diff + time.time()).strftime('%Y-%m-%d %H:%M:%S.%f'))
+        time.sleep(diff)
         self._get_seckill_init_info()
-        self.timers.start()
+
+        diff = buy_time.timestamp() - time.time() - float(global_config.getRaw('config', 'ahead'))
+        logger.info('执行抢购时间:' + datetime.fromtimestamp(diff + time.time()).strftime('%Y-%m-%d %H:%M:%S.%f'))
+        time.sleep(diff)
         self.seckill_url[self.sku_id] = self.get_seckill_url()
         logger.info('访问商品的抢购连接...')
         headers = {
@@ -246,7 +264,9 @@ class Jd_Mask_Spider(object):
         headers = {
             'User-Agent': self.default_user_agent,
             'Host': 'marathon.jd.com',
-            'Referer': 'https://marathon.jd.com/seckill/seckill.action?skuId={0}&num={1}&rid={2}'.format(self.sku_id, self.num, int(time.time())),
+            'Referer': 'https://marathon.jd.com/seckill/seckill.action?skuId={0}&num={1}&rid={2}'.format(self.sku_id,
+                                                                                                         self.num, int(
+                    time.time())),
         }
         resp = self.session.post(
             url=url,
