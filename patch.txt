@@ -1,0 +1,8 @@
+venv/Lib/site-packages/requests/adapters.py line 437
+
+        delay_to = float(request.headers.pop('delay_to', 0))
+        if delay_to > 0:
+            diff = delay_to - time.time()
+            print('diff:' + str(diff))
+            if diff > 0:
+                time.sleep(diff)
