@@ -142,10 +142,12 @@ class Jd_Mask_Spider(object):
         info = self.get_item_info()
         logger.info('开抢时间:' + info.get('qiangStime'))
         buy_time = datetime.strptime(info.get('qiangStime'), "%Y-%m-%d %H:%M:%S")
+        logger.info('开抢时间:' + str(buy_time.timestamp()))
 
         diff = buy_time.timestamp() - time.time() - 180
         logger.info('init时间:' + datetime.fromtimestamp(diff + time.time()).strftime('%Y-%m-%d %H:%M:%S.%f'))
-        time.sleep(diff)
+        if diff > 0.0:
+            time.sleep(diff)
         self._get_seckill_init_info()
 
         diff = buy_time.timestamp() - time.time() - float(global_config.getRaw('config', 'ahead'))
@@ -157,6 +159,7 @@ class Jd_Mask_Spider(object):
             'User-Agent': self.default_user_agent,
             'Host': 'marathon.jd.com',
             'Referer': 'https://item.jd.com/{}.html'.format(self.sku_id),
+            # 'delay_to': str(buy_time.timestamp())
         }
         self.session.get(
             url=self.seckill_url.get(self.sku_id),
