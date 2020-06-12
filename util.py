@@ -12,10 +12,9 @@ def parse_json(s):
     except Exception as e:
         return False
 
-def get_cookies():
+def get_cookies(cookie_string):
     """解析cookies内容并添加到cookiesJar"""
     manual_cookies = {}
-    cookie_string = global_config.getRaw('config', 'cookies_String')
     if len(cookie_string) == 0:
         print('请设置cookie')
         exit(1)
@@ -33,30 +32,21 @@ def get_cookies():
     return cookiesJar
 
 
-def get_session():
+def get_session(cookie_string):
     # 初始化session
     session = requests.session()
-    session.headers = {"User-Agent": global_config.getRaw('config', 'DEFAULT_USER_AGENT'),
-                       "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3",
-                       "Connection": "keep-alive"}
-    checksession = requests.session()
-    checksession.headers = {"User-Agent": global_config.getRaw('config', 'DEFAULT_USER_AGENT'),
-                            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3",
-                            "Connection": "keep-alive"}
+    session.headers = {
+        "User-Agent": global_config.getRaw('config', 'DEFAULT_USER_AGENT'),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3",
+        "Connection": "keep-alive"
+    }
+    # checksession = requests.session()
+    # checksession.headers = {"User-Agent": global_config.getRaw('config', 'DEFAULT_USER_AGENT'),
+    #                         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3",
+    #                         "Connection": "keep-alive"}
     # 获取cookies保存到session
-    session.cookies = get_cookies()
+    session.cookies = get_cookies(cookie_string)
     return session
-
-
-def get_sku_title():
-    """获取商品名称"""
-    url = 'https://item.jd.com/{}.html'.format(global_config.getRaw('config', 'sku_id'))
-    session = get_session()
-    resp = session.get(url).content
-    x_data = etree.HTML(resp)
-    sku_title = x_data.xpath('/html/head/title/text()')
-    return sku_title[0]
-
 
 def send_wechat(message):
     """推送信息到微信"""

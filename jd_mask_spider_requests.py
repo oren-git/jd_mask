@@ -3,14 +3,14 @@ import sys
 import time
 from jdlogger import logger
 import requests
-from util import parse_json, get_session, get_sku_title, send_wechat
+from util import parse_json, get_session, send_wechat
 from config import global_config
 from datetime import datetime
 
 class Jd_Mask_Spider(object):
     def __init__(self):
         # 初始化信息
-        self.session = get_session()
+        self.session = get_session(global_config.getRaw('config', 'cookies_String'))
         self.sku_id = global_config.getRaw('config', 'sku_id')
         if not self.sku_id:
             print('请设置sku_id')
@@ -19,7 +19,7 @@ class Jd_Mask_Spider(object):
         self.seckill_url = dict()
         self.seckill_order_data = dict()
         self.default_user_agent = global_config.getRaw('config', 'DEFAULT_USER_AGENT')
-        self.num = 1
+        self.num = 2
 
     def login(self):
         for flag in range(1, 3):
@@ -28,8 +28,7 @@ class Jd_Mask_Spider(object):
                 payload = {
                     'rid': str(int(time.time() * 1000)),
                 }
-                resp = self.session.get(
-                    url=targetURL, params=payload, allow_redirects=False)
+                resp = self.session.get(url=targetURL, params=payload, allow_redirects=False)
                 if resp.status_code == requests.codes.OK:
                     logger.info('校验是否登录[成功]')
                     logger.info('用户:{}'.format(self.get_username()))
@@ -138,7 +137,6 @@ class Jd_Mask_Spider(object):
     def request_seckill_url(self):
         """访问商品的抢购链接（用于设置cookie等"""
         logger.info('用户:{}'.format(self.get_username()))
-        logger.info('商品名称:{}'.format(get_sku_title()))
         info = self.get_item_info()
         logger.info('开抢时间:' + info.get('qiangStime'))
         buy_time = datetime.strptime(info.get('qiangStime'), "%Y-%m-%d %H:%M:%S")
