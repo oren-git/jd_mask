@@ -148,11 +148,12 @@ class Jd_Mask_Spider(object):
         logger.info('init时间:' + datetime.fromtimestamp(diff + time.time()).strftime('%Y-%m-%d %H:%M:%S.%f'))
         if diff > 0.0:
             time.sleep(diff)
-        self._get_seckill_init_info()
+        self.seckill_init_info[self.sku_id] = self._get_seckill_init_info()
 
         diff = buy_time.timestamp() - time.time() - float(global_config.getRaw('config', 'ahead'))
         logger.info('执行抢购时间:' + datetime.fromtimestamp(diff + time.time()).strftime('%Y-%m-%d %H:%M:%S.%f'))
-        time.sleep(diff)
+        if diff > 0:
+            time.sleep(diff)
         self.seckill_url[self.sku_id] = self.get_seckill_url()
         logger.info('访问商品的抢购连接...')
         headers = {
@@ -211,7 +212,7 @@ class Jd_Mask_Spider(object):
         """
         logger.info('生成提交抢购订单所需参数...')
         # 获取用户秒杀初始化信息
-        self.seckill_init_info[self.sku_id] = self._get_seckill_init_info()
+        # self.seckill_init_info[self.sku_id] = self._get_seckill_init_info()
         init_info = self.seckill_init_info.get(self.sku_id)
         default_address = init_info['addressList'][0]  # 默认地址dict
         invoice_info = init_info.get('invoiceInfo', {})  # 默认发票信息dict, 有可能不返回
@@ -267,9 +268,7 @@ class Jd_Mask_Spider(object):
         headers = {
             'User-Agent': self.default_user_agent,
             'Host': 'marathon.jd.com',
-            'Referer': 'https://marathon.jd.com/seckill/seckill.action?skuId={0}&num={1}&rid={2}'.format(self.sku_id,
-                                                                                                         self.num, int(
-                    time.time())),
+            'Referer': 'https://marathon.jd.com/seckill/seckill.action?skuId={0}&num={1}&rid={2}'.format(self.sku_id, self.num, int(time.time())),
         }
         resp = self.session.post(
             url=url,
